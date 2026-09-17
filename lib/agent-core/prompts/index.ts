@@ -50,10 +50,7 @@ Already filled slots from previous turns: ${JSON.stringify(filledSlots)}.
 Extract ONLY what the customer explicitly said in their latest message. If they haven't provided required information, leave it missing.`;
 }
 
-export function enforceSlotsPrompt(
-  slotList: string,
-  conversationText: string,
-): string {
+export function enforceSlotsPrompt(slotList: string, conversationText: string): string {
   return `You are a verification assistant. You will be given a list of slot values that an extraction system claims the CUSTOMER provided, and the full conversation history.
 
 Your job: for each slot, determine if the CUSTOMER explicitly stated that value in their messages.
@@ -127,9 +124,7 @@ const SLOT_DESCRIPTIONS: Record<string, string> = {
 };
 
 function formatMissingSlots(missingSlots: string[]): string {
-  const descriptions = missingSlots
-    .map((slot) => SLOT_DESCRIPTIONS[slot] || slot)
-    .filter(Boolean);
+  const descriptions = missingSlots.map((slot) => SLOT_DESCRIPTIONS[slot] || slot).filter(Boolean);
 
   if (descriptions.length === 0) return "";
   if (descriptions.length === 1) return `Could you please provide ${descriptions[0]}?`;
@@ -169,7 +164,7 @@ Action: ${state.proposedAction?.type}
 Details: ${JSON.stringify(state.proposedAction?.parameters)}
 Rationale: ${state.proposedAction?.rationale}
 
-Present this proposed action to the customer clearly and ask: "Would you like me to proceed with this? Please confirm with YES or NO."
+Present this proposed action to the customer clearly and ask but avoid it in situations where such a question would not make sense: "Would you like me to proceed with this? Please confirm with YES or NO."
 
 Do NOT execute anything yet. Wait for their confirmation.`;
 }
