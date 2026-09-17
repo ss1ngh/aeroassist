@@ -1,24 +1,15 @@
-import { ChatGroq } from "@langchain/groq";
 import type { AgentStateType } from "../state";
 import { IntentSlotSchemas } from "../schemas/intent-slots";
-import { enforceSlotsPrompt } from "../prompts";
-
-function getModel() {
-  return new ChatGroq({
-    model: process.env.MODEL_NAME ?? "qwen/qwen3.8-27b",
-    temperature: 0,
-  });
-}
 
 /**
- * Deterministic enforcement of required slots.
+ * Deterministic enforcement of required slots — NO LLM call.
  *
  * The extractSlots LLM sometimes hallucinates values (invents a PNR or name)
- * even when the customer never said them. This node uses a second LLM call
- * as a verifier: it compares each filled slot value against the actual
- * conversation and strips any that aren't grounded in the customer's messages.
+ * even when the customer never said them. This node checks each filled slot
+ * value against the actual customer messages using string matching.
  *
  * This is the hard gate that ensures the agent always asks for real information.
+ * Zero LLM cost, zero latency overhead.
  */
 export async function enforceRequiredSlots(state: AgentStateType): Promise<Partial<AgentStateType>> {
   if (!state.intent || !state.filledSlots || Object.keys(state.filledSlots).length === 0) {
@@ -47,48 +38,29 @@ export async function enforceRequiredSlots(state: AgentStateType): Promise<Parti
     return { missingSlots: missing };
   }
 
-  // Build the conversation text for verification
-  const conversationText = state.messages
-    .map((m) => `${m.role}: ${m.content}`)
-    .join("\n");
+  // Build a set of all customer messages (lowercased for matching)
+  const customerMessages = state.messages
+    .filter((m) => m.role === "user")
+    .map((m) => m.content.toLowerCase())
+    .join(" ");
 
-  // Ask the verifier LLM: did the CUSTOMER actually say these values?
-  const model = getModel();
-  const slotList = slotsToVerify
-    .map((slot) => `- "${slot}" = "${state.filledSlots[slot]}"`)
-    .join("\n");
-
-  const result = await model.invoke([
-    {
-      role: "system",
-      content: enforceSlotsPrompt(slotList, conversationText),
-    },
-    {
-      role: "user",
-      content: "Verify each slot value. Return JSON with 'grounded' and 'hallucinated' arrays.",
-    },
-  ]);
-
-  // Parse the response
-  let hallucinated: string[] = [];
-
-  try {
-    const content = typeof result.content === "string" ? result.content : JSON.stringify(result.content);
-    // Try to extract JSON from the response
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      hallucinated = parsed.hallucinated ?? [];
-    }
-  } catch {
-    // If parsing fails, be conservative: treat all as hallucinated
-    hallucinated = slotsToVerify;
-  }
-
-  // Build cleaned slots: only keep grounded values
+  // Check each filled slot: does the value appear in the customer's messages?
   const cleanedSlots = { ...state.filledSlots };
-  for (const slot of hallucinated) {
-    delete cleanedSlots[slot];
+  const hallucinated: string[] = [];
+
+  for (const slot of slotsToVerify) {
+    const value = String(state.filledSlots[slot]).trim();
+
+    // Skip internal/computed fields (prefixed with _)
+    if (slot.startsWith("_")) continue;
+
+    // Check if the value (or a close variant) appears in the customer's messages
+    const isGrounded = isValueGrounded(value, customerMessages);
+
+    if (!isGrounded) {
+      delete cleanedSlots[slot];
+      hallucinated.push(slot);
+    }
   }
 
   // Recompute missing slots
@@ -100,4 +72,34 @@ export async function enforceRequiredSlots(state: AgentStateType): Promise<Parti
     filledSlots: cleanedSlots,
     missingSlots: missing,
   };
+}
+
+/**
+ * Check if a value is grounded in the customer's messages.
+ * Uses multiple strategies to catch common patterns:
+ * - Exact match (case-insensitive)
+ * - Partial match (for names like "Priya" in "Priya Nair")
+ * - Alphanumeric match (for PNRs like "TR1190B")
+ */
+function isValueGrounded(value: string, messages: string): boolean {
+  const lowerValue = value.toLowerCase();
+
+  // Exact match
+  if (messages.includes(lowerValue)) return true;
+
+  // For multi-word values (like "Priya Nair"), check each word
+  const words = lowerValue.split(/\s+/).filter((w) => w.length > 2);
+  if (words.length > 1) {
+    const allWordsFound = words.every((word) => messages.includes(word));
+    if (allWordsFound) return true;
+  }
+
+  // For alphanumeric codes (PNRs), check with common separators removed
+  // "TR1190B" should match "tr1190b" in the message
+  if (/^[a-z0-9]+$/i.test(value)) {
+    const stripped = messages.replace(/[\s\-_.]/g, "");
+    if (stripped.includes(lowerValue)) return true;
+  }
+
+  return false;
 }
