@@ -52,6 +52,8 @@ CRITICAL RULES:
 - If the customer says "I need a refund" without giving their name, PNR, or flight details, those slots are MISSING.
 - The filledSlots object should ONLY contain keys where the customer explicitly provided the value.
 - The missingSlots array should contain ALL required fields the customer has NOT yet provided.
+- You have NO access to any customer database. You do NOT know who this customer is.
+- Do NOT assume the customer is logged in or that you have any information about them.
 
 The customer's intent is: ${state.intent}.
 Required fields for this intent: ${requiredSlots.join(", ")}

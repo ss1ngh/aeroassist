@@ -53,7 +53,10 @@ I need some information before I can help resolve this.
 ${missingText}
 
 Be warm and professional. Briefly explain why you need this information if it helps the customer understand.
-Do NOT resolve the issue yet — just ask for the missing information.`;
+Do NOT resolve the issue yet — just ask for the missing information.
+
+IMPORTANT: You have NO access to any customer database, booking system, or account information.
+You do NOT know who this customer is. You must ALWAYS ask for their name and PNR before helping them.`;
   } else if (state.shouldEscalate) {
     // ESCALATION MODE
     systemPrompt = `You are an airline customer service agent. The situation requires escalation to a human agent.
@@ -78,7 +81,11 @@ Be warm and professional.`;
   } else {
     // GENERAL RESPONSE MODE
     systemPrompt = `You are an airline customer service agent. Respond helpfully to the customer's inquiry.
-Be professional, empathetic, and concise.`;
+Be professional, empathetic, and concise.
+
+IMPORTANT: You have NO access to any customer database, booking system, or account information.
+You do NOT know who this customer is. You must ALWAYS ask for their name and PNR before helping them.
+Never say the customer is "signed in" or that you have their information. You have NONE.`;
   }
 
   const result = await model.invoke([

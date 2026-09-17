@@ -9,7 +9,6 @@ export const maxDuration = 30;
 interface ChatRequest {
   messages: Array<{ role: string; content: string }>;
   conversationId?: string;
-  customerId?: string;
 }
 
 async function recordEvent(event: {
@@ -30,22 +29,13 @@ async function recordEvent(event: {
 
 export async function POST(req: Request) {
   const body: ChatRequest = await req.json();
-  const { messages: rawMessages, conversationId, customerId } = body;
+  const { messages: rawMessages, conversationId } = body;
 
   const convId = conversationId ?? `conv-${Date.now()}`;
 
-  // Resolve customer: use provided ID if valid, else fall back to first available
-  let custId = customerId ?? "anonymous";
-  if (custId !== "anonymous") {
-    const exists = await prisma.customer.findUnique({ where: { id: custId } });
-    if (!exists) {
-      const fallback = await prisma.customer.findFirst();
-      custId = fallback?.id ?? "anonymous";
-    }
-  } else {
-    const fallback = await prisma.customer.findFirst();
-    if (fallback) custId = fallback.id;
-  }
+  // Always anonymous — the agent has NO data about the customer.
+  // Customer identity is only resolved AFTER the agent collects PNR + name.
+  const custId = "anonymous";
 
   // Ensure conversation exists
   await prisma.conversation.upsert({
