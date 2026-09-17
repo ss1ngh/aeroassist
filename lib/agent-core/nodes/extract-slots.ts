@@ -2,6 +2,7 @@ import { ChatGroq } from "@langchain/groq";
 import type { AgentStateType } from "../state";
 import { IntentSlotSchemas } from "../schemas/intent-slots";
 import { SlotExtractionSchema } from "../schemas/llm-schemas";
+import { extractSlotsPrompt } from "../prompts";
 
 function getModel() {
   return new ChatGroq({
@@ -13,10 +14,6 @@ function getModel() {
 /**
  * Extract structured slots from the conversation based on the detected intent.
  * Returns filled slots and a list of missing required slots.
- *
- * IMPORTANT: The LLM must ONLY extract values the customer explicitly stated.
- * It must NEVER invent, guess, or assume values. If a value is not mentioned,
- * it must be left out of filledSlots so it appears in missingSlots.
  */
 export async function extractSlots(state: AgentStateType): Promise<Partial<AgentStateType>> {
   if (!state.intent) {
@@ -43,28 +40,9 @@ export async function extractSlots(state: AgentStateType): Promise<Partial<Agent
   const result = await model.invoke([
     {
       role: "system",
-      content: `You are extracting information from an airline customer service conversation.
-
-CRITICAL RULES:
-- ONLY extract values the customer EXPLICITLY stated in their message.
-- NEVER invent, guess, assume, or hallucinate values. If the customer did not say it, do NOT include it.
-- NEVER make up a PNR, name, flight number, or any other detail.
-- If the customer says "I need a refund" without giving their name, PNR, or flight details, those slots are MISSING.
-- The filledSlots object should ONLY contain keys where the customer explicitly provided the value.
-- The missingSlots array should contain ALL required fields the customer has NOT yet provided.
-- You have NO access to any customer database. You do NOT know who this customer is.
-- Do NOT assume the customer is logged in or that you have any information about them.
-
-The customer's intent is: ${state.intent}.
-Required fields for this intent: ${requiredSlots.join(", ")}
-Already filled slots from previous turns: ${JSON.stringify(state.filledSlots)}.
-
-Extract ONLY what the customer explicitly said in their latest message. If they haven't provided required information, leave it missing.`,
+      content: extractSlotsPrompt(state.intent, requiredSlots, state.filledSlots),
     },
-    {
-      role: "user",
-      content: conversationText,
-    },
+    { role: "user", content: conversationText },
   ]);
 
   const mergedSlots = { ...state.filledSlots, ...result.filledSlots };

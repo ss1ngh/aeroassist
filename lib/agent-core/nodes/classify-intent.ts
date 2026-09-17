@@ -1,6 +1,7 @@
 import { ChatGroq } from "@langchain/groq";
 import type { AgentStateType } from "../state";
 import { ClassificationSchema } from "../schemas/llm-schemas";
+import { classifyIntentPrompt } from "../prompts";
 
 function getModel() {
   return new ChatGroq({
@@ -24,20 +25,8 @@ export async function classifyIntent(state: AgentStateType): Promise<Partial<Age
   const model = getModel().withStructuredOutput(ClassificationSchema);
 
   const result = await model.invoke([
-    {
-      role: "system",
-      content: `You are an airline customer service intent classifier.
-Classify the customer's message into one of: cancellation, delay, refund, fare_difference, general_inquiry.
-Also assess their frustration level from 0 (calm) to 1 (very frustrated).
-Be precise. If the customer mentions a cancelled flight, use "cancellation". If they mention a delay, use "delay". If they want money back, use "refund". If they want to change flights and there's a price difference, use "fare_difference".
-
-IMPORTANT: You have NO access to any customer database, booking system, or account information.
-You do NOT know who this customer is. Classify based solely on the text of their message.`,
-    },
-    {
-      role: "user",
-      content: lastUserMessage.content,
-    },
+    { role: "system", content: classifyIntentPrompt() },
+    { role: "user", content: lastUserMessage.content },
   ]);
 
   return {

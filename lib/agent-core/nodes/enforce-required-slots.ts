@@ -1,6 +1,7 @@
 import { ChatGroq } from "@langchain/groq";
 import type { AgentStateType } from "../state";
 import { IntentSlotSchemas } from "../schemas/intent-slots";
+import { enforceSlotsPrompt } from "../prompts";
 
 function getModel() {
   return new ChatGroq({
@@ -60,27 +61,7 @@ export async function enforceRequiredSlots(state: AgentStateType): Promise<Parti
   const result = await model.invoke([
     {
       role: "system",
-      content: `You are a verification assistant. You will be given a list of slot values that an extraction system claims the CUSTOMER provided, and the full conversation history.
-
-Your job: for each slot, determine if the CUSTOMER explicitly stated that value in their messages.
-
-RULES:
-- A value is GROUNDED if the customer's message contains that exact value or a clear synonym.
-- A value is HALLUCINATED if the customer never mentioned it, even indirectly.
-- Names must appear in the customer's messages to be grounded.
-- PNRs/codes must appear in the customer's messages to be grounded.
-- If the customer said "my name is Priya" then "Priya" is grounded.
-- If the customer said nothing about their name, any name value is HALLUCINATED.
-
-Return a JSON object with two arrays:
-- "grounded": slot names where the value IS supported by the customer's messages
-- "hallucinated": slot names where the value is NOT supported (invented by the system)
-
-Slot values to verify:
-${slotList}
-
-Conversation:
-${conversationText}`,
+      content: enforceSlotsPrompt(slotList, conversationText),
     },
     {
       role: "user",
