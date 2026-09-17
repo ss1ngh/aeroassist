@@ -71,8 +71,8 @@ export default function ChatPage() {
               if (line.startsWith("data: ")) {
                 try {
                   const data = JSON.parse(line.slice(6));
-                  if (data.type === "text-delta" && data.textDelta) {
-                    agentText += data.textDelta;
+                  if (data.type === "text-delta" && data.delta) {
+                    agentText += data.delta;
                     const captured = agentText;
                     setMessages((prev) =>
                       prev.map((m) =>

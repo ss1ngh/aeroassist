@@ -5,7 +5,7 @@ import { SlotExtractionSchema } from "../schemas/llm-schemas";
 
 function getModel() {
   return new ChatGroq({
-    model: process.env.MODEL_NAME ?? "llama-3.3-70b-versatile",
+    model: process.env.MODEL_NAME ?? "qwen/qwen3.8-27b",
     temperature: 0,
   });
 }
