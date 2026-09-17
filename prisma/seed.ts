@@ -11,110 +11,84 @@ async function main() {
   await prisma.booking.deleteMany();
   await prisma.customer.deleteMany();
 
-  // Create 3 customers with varying loyalty tiers
-  const customer1 = await prisma.customer.create({
+  // Create 3 customers from the assignment
+  const priya = await prisma.customer.create({
     data: {
-      name: "Alice Johnson",
-      email: "alice.johnson@email.com",
-      loyaltyTier: "platinum",
-    },
-  });
-
-  const customer2 = await prisma.customer.create({
-    data: {
-      name: "Bob Martinez",
-      email: "bob.martinez@email.com",
+      name: "Priya Nair",
+      email: "priya.nair@example.com",
       loyaltyTier: "gold",
     },
   });
 
-  const customer3 = await prisma.customer.create({
+  const arvind = await prisma.customer.create({
     data: {
-      name: "Charlie Kim",
-      email: "charlie.kim@email.com",
+      name: "Arvind Kulkarni",
+      email: "arvind.kulkarni@example.com",
       loyaltyTier: "silver",
     },
   });
 
-  console.log(`Created customers: ${customer1.id}, ${customer2.id}, ${customer3.id}`);
+  const meher = await prisma.customer.create({
+    data: {
+      name: "Meher Kaur",
+      email: "meher.kaur@example.com",
+      loyaltyTier: "platinum",
+    },
+  });
 
-  // Create 5-6 bookings covering different disruption scenarios
+  console.log(`Created customers: ${priya.id}, ${arvind.id}, ${meher.id}`);
+
+  // Create bookings from the assignment
   const bookings = await Promise.all([
-    // Alice - Cancelled flight (London to NYC)
+    // Priya Nair - Cancelled flight (Delhi → Goa) Wed 23 Sep 2026
     prisma.booking.create({
       data: {
-        customerId: customer1.id,
-        pnr: "ABC123",
-        flightNumber: "AA100",
-        origin: "LHR",
-        destination: "JFK",
-        scheduledDeparture: new Date("2026-09-20T08:00:00Z"),
-        status: "cancelled",
-        fareClass: "business",
-      },
-    }),
-    // Alice - Delayed flight (NYC to LA)
-    prisma.booking.create({
-      data: {
-        customerId: customer1.id,
-        pnr: "DEF456",
-        flightNumber: "AA200",
-        origin: "JFK",
-        destination: "LAX",
-        scheduledDeparture: new Date("2026-09-22T14:00:00Z"),
-        status: "delayed",
-        fareClass: "business",
-      },
-    }),
-    // Bob - Cancelled flight (Chicago to Miami)
-    prisma.booking.create({
-      data: {
-        customerId: customer2.id,
-        pnr: "GHI789",
-        flightNumber: "UA300",
-        origin: "ORD",
-        destination: "MIA",
-        scheduledDeparture: new Date("2026-09-21T10:30:00Z"),
-        status: "cancelled",
-        fareClass: "premium_economy",
-      },
-    }),
-    // Bob - Delayed flight (Miami to Seattle)
-    prisma.booking.create({
-      data: {
-        customerId: customer2.id,
-        pnr: "JKL012",
-        flightNumber: "UA400",
-        origin: "MIA",
-        destination: "SEA",
-        scheduledDeparture: new Date("2026-09-23T16:00:00Z"),
-        status: "delayed",
-        fareClass: "economy",
-      },
-    }),
-    // Charlie - Cancelled flight (SF to Denver)
-    prisma.booking.create({
-      data: {
-        customerId: customer3.id,
-        pnr: "MNO345",
-        flightNumber: "DL500",
-        origin: "SFO",
-        destination: "DEN",
-        scheduledDeparture: new Date("2026-09-19T09:00:00Z"),
+        customerId: priya.id,
+        pnr: "SK4821X",
+        flightNumber: "SK-204",
+        origin: "DEL",
+        destination: "GOI",
+        scheduledDeparture: new Date("2026-09-23T13:10:00Z"), // 18:40 IST = 13:10 UTC
         status: "cancelled",
         fareClass: "economy",
       },
     }),
-    // Charlie - Delayed flight (Denver to Boston)
+    // Priya Nair - Return flight (Goa → Delhi) Fri 25 Sep 2026 (Unaffected)
     prisma.booking.create({
       data: {
-        customerId: customer3.id,
-        pnr: "PQR678",
-        flightNumber: "DL600",
-        origin: "DEN",
-        destination: "BOS",
-        scheduledDeparture: new Date("2026-09-24T12:00:00Z"),
+        customerId: priya.id,
+        pnr: "SK4821X",
+        flightNumber: "SK-204R",
+        origin: "GOI",
+        destination: "DEL",
+        scheduledDeparture: new Date("2026-09-25T10:50:00Z"), // 16:20 IST = 10:50 UTC
         status: "on_time",
+        fareClass: "economy",
+      },
+    }),
+    // Arvind Kulkarni - Delayed 4h (Mumbai → Bengaluru) Wed 23 Sep 2026
+    prisma.booking.create({
+      data: {
+        customerId: arvind.id,
+        pnr: "TR1190B",
+        flightNumber: "SK-118",
+        origin: "BOM",
+        destination: "BLR",
+        scheduledDeparture: new Date("2026-09-22T23:40:00Z"), // 07:10 IST = 23:40 UTC (Sep 22)
+        status: "delayed",
+        fareClass: "economy",
+      },
+    }),
+    // Meher Kaur - Delayed 6h (Delhi → Hyderabad) Wed 23 Sep 2026
+    prisma.booking.create({
+      data: {
+        customerId: meher.id,
+        pnr: "WL7742",
+        flightNumber: "SK-305",
+        origin: "DEL",
+        destination: "HYD",
+        scheduledDeparture: new Date("2026-09-23T08:30:00Z"), // 14:00 IST = 08:30 UTC
+        status: "delayed",
         fareClass: "economy",
       },
     }),

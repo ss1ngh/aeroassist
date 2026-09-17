@@ -15,76 +15,80 @@ export interface AuthorityRule {
 }
 
 /**
- * Data-driven authority rule table.
+ * Data-driven authority rule table — exact rules from the assignment.
  * Rules are evaluated top-to-bottom; first match wins.
  */
 export const AUTHORITY_RULES: AuthorityRule[] = [
-  // Refunds
-  {
-    actionType: "process_refund",
-    paramKey: "amount",
-    maxParamValue: 200,
-    result: "allow",
-    reason: "Refund <= $200: auto-execute per policy",
-  },
-  {
-    actionType: "process_refund",
-    paramKey: "amount",
-    maxParamValue: 1000,
-    result: "require_confirmation",
-    reason: "Refund $200-$1000: require customer confirmation",
-  },
-  {
-    actionType: "process_refund",
-    result: "escalate",
-    reason: "Refund > $1000: escalate to human agent",
-  },
-
-  // Rebooking
+  // ── Cancellation rebooking (free within 24h, airline-caused) ──
   {
     actionType: "rebook_flight",
     paramKey: "fareDifference",
     maxParamValue: 0,
     result: "allow",
-    reason: "No fare difference: auto-execute rebooking",
+    reason: "Airline-caused cancellation: free rebooking within 24h",
   },
+
+  // ── Fare difference above ₹1,500 → escalate ──
   {
     actionType: "rebook_flight",
     paramKey: "fareDifference",
-    maxParamValue: 500,
+    maxParamValue: 1500,
     result: "require_confirmation",
-    reason: "Rebooking with fare difference <= $500: require confirmation",
+    reason: "Fare difference ≤ ₹1,500: require customer confirmation",
   },
   {
     actionType: "rebook_flight",
     result: "escalate",
-    reason: "Rebooking with fare difference > $500: escalate",
+    reason: "Fare difference > ₹1,500: escalate to supervisor",
   },
 
-  // Vouchers
+  // ── Refunds (airline-caused cancellations: full within 7 days) ──
+  {
+    actionType: "process_refund",
+    result: "allow",
+    reason: "Airline-caused cancellation: full refund within 7 business days to original payment method",
+  },
+
+  // ── Meal vouchers (₹500) ──
   {
     actionType: "issue_voucher",
     paramKey: "amount",
-    maxParamValue: 100,
+    maxParamValue: 500,
     result: "allow",
-    reason: "Voucher <= $100: auto-execute",
+    reason: "Meal voucher ≤ ₹500: auto-execute per delay compensation rule",
   },
   {
     actionType: "issue_voucher",
     result: "require_confirmation",
-    reason: "Voucher > $100: require confirmation",
+    reason: "Voucher amount exceeds policy: require confirmation",
   },
 
-  // Information and escalation
+  // ── Lounge access (delay > 3h) ──
+  {
+    actionType: "issue_lounge_access",
+    result: "allow",
+    reason: "Lounge access for delay > 3 hours: auto-execute per policy",
+  },
+
+  // ── Hotel accommodation (delay > 5h: delayed hours only, not full night) ──
+  {
+    actionType: "arrange_hotel",
+    result: "allow",
+    reason: "Hotel for delay > 5 hours: arrange for delayed hours only per policy",
+  },
+
+  // ── Information queries ──
   {
     actionType: "provide_information",
     result: "allow",
     reason: "Information queries: always auto-execute",
   },
+
+  // ── Legal threats / formal complaints → always escalate ──
   {
     actionType: "escalate_to_agent",
     result: "escalate",
-    reason: "Explicit escalation: always escalate",
+    reason: "Legal threats or formal complaints: escalate immediately",
   },
 ];
 

@@ -20,7 +20,7 @@ model Customer {
 model Booking {
   id                 String   @id @default(cuid())
   customerId         String
-  pnr                String   @unique
+  pnr                String   // one PNR can cover multiple flight segments
   flightNumber       String
   origin             String
   destination        String
@@ -29,6 +29,8 @@ model Booking {
   fareClass          String   @default("economy") // economy | premium_economy | business | first
   createdAt          DateTime @default(now())
   customer           Customer @relation(fields: [customerId], references: [id])
+
+  @@unique([pnr, flightNumber])
 }
 
 model Conversation {

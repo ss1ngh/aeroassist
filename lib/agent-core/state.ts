@@ -13,6 +13,8 @@ export type ActionType =
   | "process_refund"
   | "rebook_flight"
   | "issue_voucher"
+  | "issue_lounge_access"
+  | "arrange_hotel"
   | "provide_information"
   | "escalate_to_agent";
 

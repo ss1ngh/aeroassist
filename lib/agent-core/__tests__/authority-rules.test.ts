@@ -2,53 +2,55 @@ import { describe, it, expect } from "vitest";
 import { checkAuthority, AUTHORITY_RULES } from "../authority-rules";
 
 describe("AUTHORITY_RULES", () => {
-  it("has rules for all action types", () => {
+  it("has rules for all required action types", () => {
     const actionTypes = new Set(AUTHORITY_RULES.map((r) => r.actionType));
     expect(actionTypes.has("process_refund")).toBe(true);
     expect(actionTypes.has("rebook_flight")).toBe(true);
     expect(actionTypes.has("issue_voucher")).toBe(true);
+    expect(actionTypes.has("issue_lounge_access")).toBe(true);
+    expect(actionTypes.has("arrange_hotel")).toBe(true);
     expect(actionTypes.has("provide_information")).toBe(true);
     expect(actionTypes.has("escalate_to_agent")).toBe(true);
   });
 
-  it("refund <= $200 is auto-allow", () => {
-    const result = checkAuthority("process_refund", { amount: 150 });
-    expect(result.result).toBe("allow");
-  });
-
-  it("refund $200-$1000 requires confirmation", () => {
-    const result = checkAuthority("process_refund", { amount: 500 });
-    expect(result.result).toBe("require_confirmation");
-  });
-
-  it("refund > $1000 escalates", () => {
-    const result = checkAuthority("process_refund", { amount: 1500 });
-    expect(result.result).toBe("escalate");
-  });
-
-  it("rebooking with no fare difference is auto-allow", () => {
+  it("airline-caused cancellation: free rebooking is auto-allow", () => {
     const result = checkAuthority("rebook_flight", { fareDifference: 0 });
     expect(result.result).toBe("allow");
   });
 
-  it("rebooking with fare difference <= $500 requires confirmation", () => {
-    const result = checkAuthority("rebook_flight", { fareDifference: 300 });
+  it("fare difference ≤ ₹1,500 requires confirmation", () => {
+    const result = checkAuthority("rebook_flight", { fareDifference: 1000 });
     expect(result.result).toBe("require_confirmation");
   });
 
-  it("rebooking with fare difference > $500 escalates", () => {
-    const result = checkAuthority("rebook_flight", { fareDifference: 700 });
+  it("fare difference > ₹1,500 escalates", () => {
+    const result = checkAuthority("rebook_flight", { fareDifference: 2000 });
     expect(result.result).toBe("escalate");
   });
 
-  it("voucher <= $100 is auto-allow", () => {
-    const result = checkAuthority("issue_voucher", { amount: 75 });
+  it("airline-caused cancellation refund is auto-allow", () => {
+    const result = checkAuthority("process_refund", {});
     expect(result.result).toBe("allow");
   });
 
-  it("voucher > $100 requires confirmation", () => {
-    const result = checkAuthority("issue_voucher", { amount: 200 });
+  it("meal voucher ≤ ₹500 is auto-allow", () => {
+    const result = checkAuthority("issue_voucher", { amount: 500 });
+    expect(result.result).toBe("allow");
+  });
+
+  it("voucher amount > ₹500 requires confirmation", () => {
+    const result = checkAuthority("issue_voucher", { amount: 800 });
     expect(result.result).toBe("require_confirmation");
+  });
+
+  it("lounge access for delay > 3h is auto-allow", () => {
+    const result = checkAuthority("issue_lounge_access", {});
+    expect(result.result).toBe("allow");
+  });
+
+  it("hotel accommodation for delay > 5h is auto-allow", () => {
+    const result = checkAuthority("arrange_hotel", {});
+    expect(result.result).toBe("allow");
   });
 
   it("provide_information is always auto-allow", () => {
@@ -65,10 +67,5 @@ describe("AUTHORITY_RULES", () => {
     const result = checkAuthority("unknown_action" as never, {});
     expect(result.result).toBe("escalate");
     expect(result.reason).toContain("No matching authority rule");
-  });
-
-  it("refund without amount parameter skips amount-based rules", () => {
-    const result = checkAuthority("process_refund", {});
-    expect(result.result).toBe("escalate");
   });
 });

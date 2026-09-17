@@ -1,137 +1,61 @@
 /**
- * Static airline service policies injected into LLM context.
- * These rules are the source of truth for the agent's decision-making.
+ * Static airline service policies — exact rules from the assignment.
+ * These are the source of truth for the agent's decision-making.
+ *
+ * Date context: Wednesday, 23 September 2026.
  */
 
 export const CANCELLATION_POLICY = `
-## Flight Cancellation Policy
-
-### Customer Rights
-- If your flight is cancelled by the airline, you are entitled to:
-  1. A full refund to your original form of payment, OR
-  2. Rebooking on the next available flight at no additional cost, OR
-  3. Rebooking on a later date that suits your schedule.
-
-### Refund Eligibility
-- Full refund: Always available when airline cancels the flight.
-- Partial refund: Not applicable for airline-initiated cancellations.
-- Refund processing time: 5-10 business days for credit/debit cards; 20-25 business days for cash purchases.
-
-### Rebooking Rules
-- Rebooking is free of charge when the airline cancels.
-- If the replacement flight results in a fare difference, the customer pays nothing for downgrades and gets a voucher for upgrades.
-- Customers may request a specific alternative flight subject to availability.
-
-### Compensation
-- EU flights (EC 261): €250-€600 depending on distance.
-- US domestic flights: No federal compensation requirement, but airline may offer vouchers.
-- Compensation is separate from refund/rebooking rights.
+## Cancellation Rebooking Rule
+If a flight is cancelled by the airline, the customer is entitled to:
+- A free rebooking on the next available flight within 24 hours, OR
+- A full refund — customer's choice.
 `;
 
 export const DELAY_POLICY = `
-## Flight Delay Policy
-
-### Delay Categories
-- Minor delay (under 2 hours): Gate updates provided, no meal vouchers required.
-- Moderate delay (2-4 hours): Meal vouchers provided if delay exceeds mealtime.
-- Major delay (4+ hours): Meal vouchers, hotel accommodation if overnight, and rebooking options.
-- Extended delay (8+ hours): Full refund option becomes available.
-
-### Customer Entitlements by Delay Duration
-| Delay Duration | Meals | Hotel | Rebooking | Refund |
-|----------------|-------|-------|-----------|--------|
-| < 2 hours      | No    | No    | On request | No |
-| 2-4 hours      | Yes   | No    | On request | No |
-| 4-8 hours      | Yes   | If overnight | Free | On request |
-| 8+ hours       | Yes   | Yes   | Free      | Yes |
-
-### Proactive Actions
-- Automatic rebooking if delay causes missed connection.
-- SMS/push notifications at each delay threshold.
-- Loyalty tier customers (Gold/Platinum): priority rebooking and lounge access during delays.
+## Delay Compensation Rule
+| Delay Duration       | Compensation                                    |
+|----------------------|------------------------------------------------|
+| Under 3 hours       | ₹500 meal voucher                              |
+| More than 3 hours   | Meal voucher + lounge access                   |
+| More than 5 hours   | Meal voucher + hotel accommodation (delayed hours only, NOT a full night) |
 `;
 
 export const REFUND_POLICY = `
-## Refund Policy
-
-### Refund Types
-1. **Full Refund**: Available when airline cancels or significantly changes the flight (>2 hours).
-2. **Partial Refund**: Available for voluntary downgrades or service failures.
-3. **No Refund**: Non-refundable fares after 24-hour cooling-off period (except airline fault).
-
-### 24-Hour Cooling-Off Rule
-- All bookings made 7+ days before departure can be cancelled within 24 hours for a full refund.
-- Applies to all fare classes.
-
-### Refund Processing
-- Credit/debit card: 5-10 business days.
-- Cash purchase: 20-25 business days.
-- Travel voucher: Instant issuance.
-
-### Refund Amounts by Scenario
-| Scenario | Refund Amount | Processing Time |
-|----------|---------------|-----------------|
-| Airline cancellation | 100% | 5-10 business days |
-| Significant schedule change (>2h) | 100% | 5-10 business days |
-| Voluntary cancellation (refundable fare) | 100% minus fees | 5-10 business days |
-| Voluntary cancellation (non-refundable) | Taxes only | 5-10 business days |
-| Service failure | Up to 100% | Case-by-case |
+## Refund Processing Rule
+- Refunds for airline-caused cancellations are processed in full within 7 business days.
+- Refunds are issued to the original payment method only.
+- Refunds to a different payment method are PROHIBITED — must escalate to human agent.
 `;
 
 export const FARE_DIFFERENCE_POLICY = `
-## Fare Difference Policy
-
-### When Fare Differences Apply
-- Rebooking to a different flight may result in a fare difference.
-- Fare difference = New fare - Original fare (at time of original booking).
-
-### Fare Difference Rules
-| Scenario | Customer Pays | Airline Pays |
-|----------|--------------|--------------|
-| Airline cancellation rebooking | Nothing | N/A |
-| Schedule change rebooking (>2h) | Nothing | N/A |
-| Customer-requested change | Fare difference | N/A |
-| Downgrade rebooking | Nothing | Refund of difference |
-| Upgrade rebooking | Fare difference | N/A |
-
-### Payment Methods for Fare Difference
-- Credit/debit card on file.
-- Travel voucher balance.
-- New payment method at time of rebooking.
-
-### Fare Class Restrictions
-- Economy to Economy: Standard fare difference applies.
-- Economy to Premium/Business/First: Full fare difference + upgrade fee.
-- Business/First to Economy: Refund of fare difference.
-- Award tickets: Redeem miles for difference; no cash payment option.
+## Fare Difference Rule
+- If a customer voluntarily chooses to rebook on a higher-fare flight (not airline-caused), they must pay the fare difference.
+- Agents CANNOT waive fare differences above ₹1,500 without supervisor approval.
 `;
 
 export const LOYALTY_TIER_POLICY = `
-## Loyalty Tier Benefits During Disruptions
+## Loyalty Tier Rule
+- Gold and Platinum tier customers get priority rebooking (first access to next-available seats).
+- No additional compensation beyond the standard policy.
+`;
 
-### Tier Levels
-- **Silver**: Base tier, standard benefits.
-- **Gold**: Enhanced priority and additional perks.
-- **Platinum**: Maximum priority and premium benefits.
+export const ALLOWED_ACTIONS = `
+## Allowed Actions for Agent
+- Rebook the customer on the next available flight within 24 hours at no charge (airline-caused disruption).
+- Issue meal vouchers and lounge access per the delay compensation rule.
+- Arrange hotel accommodation for the delayed-hours portion, where the delay qualifies.
+- Initiate a refund request for airline-caused cancellations.
+- Provide the customer's own booking and flight status information.
+`;
 
-### Disruption Benefits by Tier
-| Benefit | Silver | Gold | Platinum |
-|---------|--------|------|----------|
-| Priority rebooking | Standard queue | Jump queue | First priority |
-| Lounge access during delay | Purchase only | Complimentary | Complimentary |
-| Hotel accommodation | Airline discretion | Guaranteed | Guaranteed + premium |
-| Meal vouchers | Standard | Enhanced | Enhanced + dining |
-| Compensation multiplier | 1x | 1.5x | 2x |
-| Dedicated support line | No | Yes | Yes + personal agent |
-
-### Escalation Thresholds by Tier
-- Silver: Auto-escalate if disruption > 8 hours or customer requests.
-- Gold: Auto-escalate if disruption > 4 hours or customer requests.
-- Platinum: Auto-escalate if disruption > 2 hours or customer requests.
-
-### Proactive Actions by Tier
-- Gold+: Automatic lounge pass during delays > 2 hours.
-- Platinum: Personal agent callback within 30 minutes of disruption notification.
+export const PROHIBITED_ACTIONS = `
+## Prohibited Actions (MUST escalate to human agent)
+- Approving any compensation beyond the stated policy amounts.
+- Waiving a fare difference above ₹1,500.
+- Making exceptions for non-airline-caused disruptions (e.g., customer missed the flight).
+- Handling threats of legal action or formal complaints — escalate immediately.
+- Processing refunds to a different payment method than the original.
 `;
 
 export const ALL_POLICIES = [
@@ -140,4 +64,6 @@ export const ALL_POLICIES = [
   REFUND_POLICY,
   FARE_DIFFERENCE_POLICY,
   LOYALTY_TIER_POLICY,
+  ALLOWED_ACTIONS,
+  PROHIBITED_ACTIONS,
 ].join("\n\n");
