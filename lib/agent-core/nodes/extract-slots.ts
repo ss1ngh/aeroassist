@@ -13,6 +13,10 @@ function getModel() {
 /**
  * Extract structured slots from the conversation based on the detected intent.
  * Returns filled slots and a list of missing required slots.
+ *
+ * IMPORTANT: The LLM must ONLY extract values the customer explicitly stated.
+ * It must NEVER invent, guess, or assume values. If a value is not mentioned,
+ * it must be left out of filledSlots so it appears in missingSlots.
  */
 export async function extractSlots(state: AgentStateType): Promise<Partial<AgentStateType>> {
   if (!state.intent) {
@@ -27,7 +31,6 @@ export async function extractSlots(state: AgentStateType): Promise<Partial<Agent
   const shape = (slotSchema as unknown as { shape: Record<string, unknown> }).shape;
   const requiredSlots = Object.keys(shape).filter((key) => {
     const field = shape[key];
-    // ZodOptional fields have an `isOptional` method or are wrapped in ZodOptional
     return !(field && typeof field === "object" && "isOptional" in field && field.isOptional);
   });
 
@@ -40,11 +43,21 @@ export async function extractSlots(state: AgentStateType): Promise<Partial<Agent
   const result = await model.invoke([
     {
       role: "system",
-      content: `Extract structured slots from this airline customer service conversation.
+      content: `You are extracting information from an airline customer service conversation.
+
+CRITICAL RULES:
+- ONLY extract values the customer EXPLICITLY stated in their message.
+- NEVER invent, guess, assume, or hallucinate values. If the customer did not say it, do NOT include it.
+- NEVER make up a PNR, name, flight number, or any other detail.
+- If the customer says "I need a refund" without giving their name, PNR, or flight details, those slots are MISSING.
+- The filledSlots object should ONLY contain keys where the customer explicitly provided the value.
+- The missingSlots array should contain ALL required fields the customer has NOT yet provided.
+
 The customer's intent is: ${state.intent}.
-Already filled slots: ${JSON.stringify(state.filledSlots)}.
-Extract any new slot values from the conversation. For missing slots, list only the ones not yet filled.
-If the PNR/booking reference is mentioned, extract it.`,
+Required fields for this intent: ${requiredSlots.join(", ")}
+Already filled slots from previous turns: ${JSON.stringify(state.filledSlots)}.
+
+Extract ONLY what the customer explicitly said in their latest message. If they haven't provided required information, leave it missing.`,
     },
     {
       role: "user",

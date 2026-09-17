@@ -2,15 +2,17 @@ import { StateGraph, START, END } from "@langchain/langgraph";
 import { AgentState, type AgentStateType } from "./state";
 import { classifyIntent } from "./nodes/classify-intent";
 import { extractSlots } from "./nodes/extract-slots";
+import { validateBooking } from "./nodes/validate-booking";
 import { proposeAction } from "./nodes/propose-action";
 import { checkAuthority } from "./nodes/check-authority";
 import { executeAction } from "./nodes/execute-action";
 import { generateResponse } from "./nodes/generate-response";
 
 /**
- * Route after extractSlots: if required slots are missing, ask for them first.
+ * Route after validateBooking: if required slots are missing, ask for them first.
+ * The validateBooking node may have cleared invalid PNRs, creating missing slots.
  */
-function routeAfterExtractSlots(state: AgentStateType): string {
+function routeAfterValidate(state: AgentStateType): string {
   if (state.missingSlots.length > 0) return "gatherInfo";
   return "proposeAction";
 }
@@ -29,9 +31,9 @@ function routeAfterAuthority(state: AgentStateType): string {
  * Build the airline disruption support agent graph.
  *
  * Flow:
- *   START -> classifyIntent -> extractSlots
+ *   START -> classifyIntent -> extractSlots -> validateBooking
  *     -> (missing slots) -> generateResponse (ask for info) -> END
- *     -> (all slots filled) -> proposeAction -> checkAuthority
+ *     -> (all slots valid) -> proposeAction -> checkAuthority
  *       -> (allow) -> executeAction -> generateResponse -> END
  *       -> (require_confirmation) -> generateResponse -> END
  *       -> (escalate) -> generateResponse -> END
@@ -40,13 +42,15 @@ function buildGraph() {
   const graph = new StateGraph(AgentState)
     .addNode("classifyIntent", classifyIntent)
     .addNode("extractSlots", extractSlots)
+    .addNode("validateBooking", validateBooking)
     .addNode("proposeAction", proposeAction)
     .addNode("checkAuthority", checkAuthority)
     .addNode("executeAction", executeAction)
     .addNode("generateResponse", generateResponse)
     .addEdge(START, "classifyIntent")
     .addEdge("classifyIntent", "extractSlots")
-    .addConditionalEdges("extractSlots", routeAfterExtractSlots, {
+    .addEdge("extractSlots", "validateBooking")
+    .addConditionalEdges("validateBooking", routeAfterValidate, {
       gatherInfo: "generateResponse",
       proposeAction: "proposeAction",
     })
