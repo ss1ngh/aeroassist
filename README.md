@@ -23,19 +23,23 @@ Built as a production-quality MVP with Next.js 14 App Router, TypeScript strict 
 - [Observability (LangSmith)](#observability-langsmith)
 - [Testing](#testing)
 - [Example Conversations](#example-conversations)
-- [Scope Cuts](#scope-cuts)
 
 ---
 
 ## Features
 
+- **Stateless Chat** — Agent has zero customer data. Must always ask for name + PNR before helping. No "signed in" assumptions.
 - **Intent Classification** — Detects cancellation, delay, refund, fare difference, or general inquiry with a sentiment/frustration score (0–1)
-- **Structured Slot Extraction** — Extracts PNR, flight number, refund amount, etc. from natural language using Zod-validated schemas
-- **Policy-Grounded Actions** — Injects static airline service rules into the LLM context for factual, policy-compliant responses
+- **Structured Slot Extraction** — Extracts PNR, flight number, reason, etc. from natural language using Zod-validated schemas
+- **Hallucination Prevention** — Deterministic `enforceRequiredSlots` node strips any values the LLM invents that aren't grounded in the customer's messages
+- **Database Validation** — Validates PNR against real bookings in PostgreSQL before acting. One PNR can cover multiple flight segments.
+- **Policy-Grounded Actions** — Injects static airline service rules (exact assignment spec) into the LLM context for factual, policy-compliant responses
 - **Authority Rule Engine** — Data-driven rule table decides: auto-execute, require confirmation, or escalate to a human agent
+- **Confirmation Flow** — Agent presents proposed action and asks for YES/NO confirmation before executing
 - **Streaming Responses** — Real-time SSE streaming from the agent graph to the browser
 - **Full Audit Trail** — Every state transition (message, intent, proposed action, executed action, escalation) is logged as an Event row
 - **Admin Dashboard** — Conversation list with status badges and per-conversation event timeline
+- **Prompt Registry** — All LLM prompts centralized in one module (`lib/agent-core/prompts/`). Edit once, propagates everywhere.
 - **LangSmith Traces** — Full execution traces with node transitions, LLM I/O, and latency
 
 ---
@@ -81,26 +85,30 @@ aeroassist/
 │   │   ├── state.ts                # Graph state shape via LangGraph Annotation
 │   │   ├── invoke.ts               # Graph invocation wrapper with LangSmith metadata tagging
 │   │   ├── authority-rules.ts      # Data-driven authority rule table + checkAuthority()
-│   │   ├── policies.ts             # Static airline service rules (5 policies as raw text)
+│   │   ├── policies.ts             # Static airline service rules (exact assignment spec)
+│   │   ├── prompts/
+│   │   │   └── index.ts            # Centralized prompt registry — all LLM prompts in one module
 │   │   ├── nodes/
 │   │   │   ├── classify-intent.ts  # LLM — classifies intent + sentiment score
 │   │   │   ├── extract-slots.ts    # LLM — extracts structured slots per intent schema
+│   │   │   ├── enforce-required-slots.ts  # Deterministic — strips hallucinated slot values
+│   │   │   ├── validate-booking.ts # Prisma — validates PNR against database, enriches slots
 │   │   │   ├── propose-action.ts   # LLM — proposes action with policies injected into prompt
 │   │   │   ├── check-authority.ts  # Pure code — evaluates authority rules (no LLM)
 │   │   │   ├── execute-action.ts   # Pure code — mock-executes actions (refund, rebook, voucher)
 │   │   │   └── generate-response.ts# LLM — produces natural-language reply to customer
 │   │   ├── schemas/
 │   │   │   ├── intent-slots.ts     # Zod schemas for each intent's required/optional slots
-│   │   │   └── llm-schemas.ts      # Zod schemas for LLM structured output (classification, extraction, action, response)
+│   │   │   └── llm-schemas.ts      # Zod schemas for LLM structured output
 │   │   └── __tests__/
-│   │       ├── authority-rules.test.ts  # 13 tests for authority rule table
-│   │       └── intent-slots.test.ts     # 11 tests for slot schemas
+│   │       ├── authority-rules.test.ts  # 12 tests for authority rule table
+│   │       └── intent-slots.test.ts     # 21 tests for slot schemas
 │   └── db/
 │       └── index.ts                # PrismaClient singleton (handles Next.js hot reload)
 │
 ├── prisma/
 │   ├── schema.prisma               # Customer, Booking, Conversation, Event models
-│   ├── seed.ts                     # Seeds 3 customers + 6 bookings
+│   ├── seed.ts                     # Seeds 3 customers + 4 bookings (exact assignment data)
 │   └── migrations/                 # Auto-generated Prisma migrations
 │
 ├── scripts/
@@ -180,31 +188,32 @@ LANGCHAIN_API_KEY="ls_your_key_here"
 LANGCHAIN_PROJECT="aeroassist"
 ```
 
-**5. Run database migrations**
+**5. Run database migrations and seed**
 
 ```bash
-npm run db:migrate
+npx prisma db push --force-reset
+npx prisma db seed
 ```
 
-This creates the `Customer`, `Booking`, `Conversation`, and `Event` tables.
+This creates the tables and seeds:
+- **3 customers**: Priya Nair (Gold), Arvind Kulkarni (Silver), Meher Kaur (Platinum)
+- **4 bookings**: 1 cancelled, 2 delayed, 1 on-time, matching the assignment scenarios
 
-**6. Seed the database**
-
-```bash
-npm run db:seed
-```
-
-This creates:
-- **3 customers**: Alice Johnson (platinum), Bob Martinez (gold), Charlie Kim (silver)
-- **6 bookings**: 3 cancelled, 2 delayed, 1 on-time, covering different routes and fare classes
-
-**7. Start the dev server**
+**6. Start the dev server**
 
 ```bash
 npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+### Quick Reset
+
+If something breaks, reset the database to a clean state:
+
+```bash
+npx prisma db push --force-reset && npx prisma db seed
+```
 
 ---
 
@@ -239,13 +248,15 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 |-------|------|-------------|
 | id | String (cuid) | Primary key |
 | customerId | String (FK) | References Customer |
-| pnr | String (unique) | Booking reference |
-| flightNumber | String | e.g. `AA100` |
-| origin | String | IATA code, e.g. `LHR` |
-| destination | String | IATA code, e.g. `JFK` |
+| pnr | String | Booking reference (one PNR can have multiple segments) |
+| flightNumber | String | e.g. `SK-204` |
+| origin | String | IATA code, e.g. `DEL` |
+| destination | String | IATA code, e.g. `GOI` |
 | scheduledDeparture | DateTime | Scheduled departure time |
 | status | String | `on_time` \| `delayed` \| `cancelled` \| `rebooked` |
 | fareClass | String | `economy` \| `premium_economy` \| `business` \| `first` |
+
+Unique constraint: `[pnr, flightNumber]` — one PNR can cover multiple flight segments.
 
 **Conversation**
 | Field | Type | Description |
@@ -265,13 +276,21 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 | actor | String | `user` \| `agent` \| `system` |
 | createdAt | DateTime | Auto-set on creation |
 
+### Seeded Data
+
+| Customer | Tier | PNR | Flight | Route | Status |
+|----------|------|-----|--------|-------|--------|
+| Priya Nair | Gold | SK4821X | SK-204 | DEL → GOI | cancelled |
+| Priya Nair | Gold | SK4821X | SK-204R | GOI → DEL | on_time |
+| Arvind Kulkarni | Silver | TR1190B | SK-118 | BOM → BLR | delayed |
+| Meher Kaur | Platinum | WL7742 | SK-305 | DEL → HYD | delayed |
+
 ### Useful Commands
 
 ```bash
-npm run db:migrate    # Run pending migrations
-npm run db:seed       # Re-seed the database
-npm run db:reset      # Drop all tables, re-migrate, re-seed
-npm run db:studio     # Open Prisma Studio (browser-based DB viewer)
+npx prisma db push --force-reset   # Reset database to schema
+npx prisma db seed                 # Re-seed with assignment data
+npx prisma db studio               # Open Prisma Studio (browser-based DB viewer)
 ```
 
 ---
@@ -288,13 +307,12 @@ Invoke the agent graph and stream the response.
   "messages": [
     { "role": "user", "content": "My flight was cancelled" }
   ],
-  "conversationId": "optional-conversation-id",
-  "customerId": "optional-customer-id"
+  "conversationId": "optional-conversation-id"
 }
 ```
 
 - `conversationId` — If omitted, a new one is generated
-- `customerId` — If omitted or invalid, falls back to the first available customer
+- The agent is **stateless** — it has no customer data and must ask for name + PNR
 
 **Response:** SSE stream (`text/event-stream`)
 
@@ -344,47 +362,67 @@ Retrieve the full event log for a conversation.
 
 ## Agent Architecture
 
-The agent is built as a LangGraph `StateGraph` with 6 nodes and conditional edges.
+The agent is built as a LangGraph `StateGraph` with 8 nodes and conditional edges.
 
 ### Graph Flow
 
 ```
-                    ┌──────────────┐
-                    │    START     │
-                    └──────┬───────┘
-                           │
-                    ┌──────▼───────┐
-                    │ classifyIntent│  LLM: intent + sentiment score
-                    └──────┬───────┘
-                           │
-                    ┌──────▼───────┐
-                    │ extractSlots  │  LLM: structured slot extraction
-                    └──────┬───────┘
-                           │
-                    ┌──────▼───────┐
-                    │ proposeAction │  LLM: action + policies injected
-                    └──────┬───────┘
-                           │
-                    ┌──────▼───────┐
-                    │ checkAuthority│  Pure code: rule table lookup
-                    └──────┬───────┘
-                           │
-              ┌────────────┼────────────┐
-              │            │            │
-       ┌──────▼──────┐  ┌──▼───┐  ┌────▼─────┐
-       │ executeAction│  │      │  │          │
-       │  (allow)     │  │      │  │          │
-       └──────┬──────┘  │      │  │          │
-              │         │      │  │          │
-              └─────────┼──────┼──┼──────────┘
-                        │      │  │
-                 ┌──────▼──────▼──▼──────┐
-                 │   generateResponse     │  LLM: natural-language reply
-                 └──────────┬────────────┘
-                            │
-                     ┌──────▼──────┐
-                     │     END     │
-                     └─────────────┘
+START
+  │
+  ▼
+┌─────────────────┐
+│  classifyIntent  │  LLM: intent + sentiment score
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│  extractSlots    │  LLM: structured slot extraction
+└────────┬────────┘
+         │
+         ▼
+┌──────────────────────┐
+│ enforceRequiredSlots │  Deterministic: strips hallucinated values
+└────────┬─────────────┘
+         │
+    missingSlots > 0?
+    ┌────┴────┐
+    │ YES     │ NO
+    ▼         ▼
+┌────────┐  ┌──────────────┐
+│generate│  │validateBooking│  Prisma: PNR lookup + name verification
+│Response│  └──────┬───────┘
+│(ask)   │    PNR valid?
+└───┬────┘    ┌────┴────┐
+    │         │ NO      │ YES
+    ▼         ▼         ▼
+  END     ┌────────┐  ┌──────────────┐
+          │generate│  │ proposeAction │  LLM: action + policies
+          │Response│  └──────┬───────┘
+          │(ask)   │         │
+          └───┬────┘         ▼
+              │        ┌──────────────┐
+            END        │ checkAuthority│  Pure code: rule table
+                       └──────┬───────┘
+                              │
+                    authorityResult?
+                    ┌─────┼─────────┐
+                    │     │         │
+                allow  confirm   escalate
+                    │     │         │
+                    ▼     ▼         ▼
+              ┌─────────┐ ┌────────┐ ┌────────┐
+              │execute  │ │generate│ │generate│
+              │Action   │ │Response│ │Response│
+              └────┬────┘ │(ask)   │ │(escalate│
+                   │      └───┬────┘ └───┬────┘
+                   ▼          │          │
+              ┌────────┐      │          │
+              │generate│      │          │
+              │Response│      │          │
+              └───┬────┘      │          │
+                  │           │          │
+                  ▼           ▼          ▼
+                 END         END        END
 ```
 
 ### Graph State
@@ -406,6 +444,20 @@ Defined in `lib/agent-core/state.ts` using LangGraph `Annotation`:
 | conversationId | string \| null | Current conversation ID |
 | customerId | string \| null | Current customer ID |
 
+### Prompt Registry
+
+All LLM prompts are centralized in `lib/agent-core/prompts/index.ts`. Key functions:
+
+| Function | Used by node | Purpose |
+|----------|-------------|---------|
+| `classifyIntentPrompt()` | classifyIntent | Intent + sentiment classification |
+| `extractSlotsPrompt()` | extractSlots | Structured slot extraction |
+| `enforceSlotsPrompt()` | enforceRequiredSlots | Hallucination verification (currently unused — deterministic) |
+| `proposeActionPrompt()` | proposeAction | Action proposal with policies |
+| `selectResponsePrompt()` | generateResponse | Routes to correct response mode |
+
+Shared constant: `NO_CUSTOMER_DATA` — tells the LLM it has zero customer info. Edit once, propagates to all nodes.
+
 ---
 
 ## Authority Rules
@@ -416,16 +468,16 @@ The `checkAuthority` node (pure code, no LLM) evaluates the proposed action agai
 
 | Action | Condition | Result | Reason |
 |--------|-----------|--------|--------|
-| `process_refund` | amount ≤ $200 | **allow** | Auto-execute per policy |
-| `process_refund` | amount ≤ $1,000 | **require_confirmation** | Confirm with customer |
-| `process_refund` | amount > $1,000 | **escalate** | Escalate to human agent |
-| `rebook_flight` | fareDifference ≤ $0 | **allow** | No cost difference |
-| `rebook_flight` | fareDifference ≤ $500 | **require_confirmation** | Confirm fare difference |
-| `rebook_flight` | fareDifference > $500 | **escalate** | High cost escalation |
-| `issue_voucher` | amount ≤ $100 | **allow** | Auto-issue |
-| `issue_voucher` | amount > $100 | **require_confirmation** | Confirm with customer |
+| `rebook_flight` | fareDifference = 0 | **allow** | Airline-caused cancellation: free rebooking |
+| `rebook_flight` | fareDifference ≤ ₹1,500 | **require_confirmation** | Confirm fare difference |
+| `rebook_flight` | fareDifference > ₹1,500 | **escalate** | Escalate to supervisor |
+| `process_refund` | — | **allow** | Airline-caused: full refund within 7 days |
+| `issue_voucher` | amount ≤ ₹500 | **allow** | Meal voucher per delay policy |
+| `issue_voucher` | amount > ₹500 | **require_confirmation** | Confirm with customer |
+| `issue_lounge_access` | — | **allow** | Delay > 3 hours |
+| `arrange_hotel` | — | **allow** | Delay > 5 hours (delayed hours only) |
 | `provide_information` | — | **allow** | Always auto-execute |
-| `escalate_to_agent` | — | **escalate** | Always escalate |
+| `escalate_to_agent` | — | **escalate** | Legal threats / formal complaints |
 
 ### Results
 
@@ -437,15 +489,31 @@ The `checkAuthority` node (pure code, no LLM) evaluates the proposed action agai
 
 ## Service Policies
 
-Static airline policy text is defined in `lib/agent-core/policies.ts` and injected into the LLM system prompt during the `proposeAction` step. This ensures factual, policy-grounded responses without RAG or vector search.
+Static airline policy text is defined in `lib/agent-core/policies.ts` — exact rules from the assignment spec. Injected into the LLM system prompt during the `proposeAction` step.
 
 ### Included Policies
 
-1. **Cancellation Policy** — Customer rights, refund eligibility, rebooking rules, EU/US compensation
-2. **Delay Policy** — Delay categories (< 2h, 2–4h, 4–8h, 8+h), entitlements by duration, loyalty tier perks
-3. **Refund Policy** — Refund types (full/partial/taxes-only), 24-hour cooling-off, processing times
-4. **Fare Difference Policy** — When fare differences apply, payment methods, fare class restrictions
-5. **Loyalty Tier Benefits** — Silver/Gold/Platinum perks during disruptions, escalation thresholds, proactive actions
+1. **Cancellation Rebooking Rule** — Free rebooking on next available flight within 24h, or full refund (customer's choice)
+2. **Delay Compensation Rule** — Under 3h: ₹500 meal voucher. Over 3h: voucher + lounge access. Over 5h: voucher + hotel (delayed hours only, not full night)
+3. **Refund Processing Rule** — Full refund within 7 business days to original payment method only
+4. **Fare Difference Rule** — Agent cannot waive fare differences above ₹1,500 without supervisor approval
+5. **Loyalty Tier Rule** — Gold/Platinum get priority rebooking, no additional compensation
+
+### Allowed Actions
+
+- Rebook on next available flight within 24h (airline-caused)
+- Issue meal vouchers and lounge access per delay policy
+- Arrange hotel accommodation for delayed hours (delay > 5h)
+- Initiate refund request for airline-caused cancellations
+- Provide booking and flight status information
+
+### Prohibited Actions (must escalate)
+
+- Approving compensation beyond stated policy amounts
+- Waiving fare difference above ₹1,500
+- Making exceptions for non-airline-caused disruptions
+- Handling threats of legal action or formal complaints
+- Processing refunds to a different payment method
 
 ---
 
@@ -506,7 +574,7 @@ Static airline policy text is defined in `lib/agent-core/policies.ts` and inject
 
 Each graph execution produces a trace in LangSmith showing:
 
-- **Node transitions** — classifyIntent → extractSlots → proposeAction → checkAuthority → (executeAction) → generateResponse
+- **Node transitions** — classifyIntent → extractSlots → enforceRequiredSlots → validateBooking → proposeAction → checkAuthority → (executeAction) → generateResponse
 - **LLM inputs/outputs** — the full system prompt (including injected policies) and the structured output at each step
 - **Latency per node** — identify bottlenecks
 - **Metadata tags** — `conversationId` and `customerId` for grouping traces
@@ -529,7 +597,7 @@ Runs a dummy cancellation conversation through the full graph. Requires valid `G
 
 ## Testing
 
-### Unit Tests (24 tests)
+### Unit Tests (33 tests)
 
 ```bash
 npm run test          # Run once
@@ -537,14 +605,15 @@ npm run test:watch    # Watch mode
 ```
 
 **Authority rules** (`lib/agent-core/__tests__/authority-rules.test.ts`):
-- 13 tests covering all action types, threshold boundaries, edge cases
-- Verifies: refund ≤ $200 = allow, $200–$1000 = confirm, > $1000 = escalate
-- Verifies: rebooking with no fare difference = allow, with difference = confirm/escalate
-- Verifies: voucher thresholds, information always allowed, unknown actions escalate
+- 12 tests covering all action types, threshold boundaries, edge cases
+- Verifies: airline-caused cancellation rebooking = allow
+- Verifies: fare difference thresholds (₹1,500), voucher limits (₹500)
+- Verifies: lounge access, hotel accommodation, information always allowed
+- Verifies: unknown actions escalate by default
 
 **Intent slot schemas** (`lib/agent-core/__tests__/intent-slots.test.ts`):
-- 11 tests across all 5 intent schemas
-- Validates required fields (PNR always required)
+- 21 tests across all 5 intent schemas
+- Validates required fields (PNR, customerName, reason always required)
 - Validates optional fields (flight number, delay minutes, refund type)
 - Confirms schema rejection of invalid data
 
@@ -560,68 +629,56 @@ End-to-end test that invokes the full agent graph with a scripted cancellation c
 
 ## Example Conversations
 
-### 1. Cancelled Flight (auto-allow refund ≤ $200)
+### 1. Delayed Flight — Full Flow
 
 ```
-User: My flight DL500 from SFO to Denver was cancelled
-Agent: I'm very sorry to hear that your flight DL500 from SFO to Denver was
-       cancelled. I understand how frustrating this must be. I can see your
-       booking and since this was airline-initiated, you're entitled to a
-       full refund. I've processed a refund of $180 — you'll see it in your
-       account within 5-10 business days. Would you also like me to rebook
-       you on the next available flight?
+User: My flight is delayed
+Agent: I need some information before I can help you.
+       Could you please provide your full name and your booking reference (PNR number)?
+
+User: My name is Arvind Kulkarni and my PNR is TR1190B
+Agent: [Validates PNR against database → finds SK-118 BOM→BLR, delayed]
+       How can I help you with this? (rebooking, compensation, meal voucher, hotel...)
+
+User: I want compensation for the delay
+Agent: Based on your booking and our policies, I can take the following action:
+       Action: issue_voucher
+       Details: { "amount": 500, "type": "meal_voucher" }
+       Would you like me to proceed? Please confirm with YES or NO.
+
+User: Yes
+Agent: Done! A ₹500 meal voucher has been issued to your account.
+       Is there anything else we could have done better, or any other way I can help?
 ```
 
-### 2. Delayed Flight (requires confirmation)
+### 2. Cancelled Flight — Refund
 
 ```
-User: My flight UA300 is delayed by 3 hours
-Agent: I can see your flight UA300 from Chicago to Miami is currently
-       delayed by approximately 3 hours. Since the delay exceeds 2 hours,
-       you're entitled to meal vouchers. I can issue a $75 meal voucher
-       for you right now. Would you like me to proceed?
-User: Yes please
-Agent: Done! A $75 meal voucher has been issued. You'll receive it via
-       email shortly. Is there anything else I can help you with?
+User: Hi
+Agent: Could you please provide your full name and your booking reference (PNR number)?
+
+User: Priya Nair, SK4821X
+Agent: [Validates → finds SK-204 DEL→GOI, cancelled]
+       How can I help you with this? (rebooking, refund, compensation...)
+
+User: I want a full refund
+Agent: Action: process_refund
+       Details: { "amount": "full", "method": "original_payment" }
+       Would you like me to proceed? YES or NO?
+
+User: yes
+Agent: Done! A full refund has been initiated. It will be processed within 7
+       business days to your original payment method.
 ```
 
-### 3. Large Refund (escalation)
+### 3. Escalation — Legal Threat
 
 ```
-User: I need a refund for my business class booking ABC123, the ticket was $2,500
-Agent: I understand you're requesting a refund of $2,500 for your business
-       class booking. Since this amount exceeds our auto-processing threshold,
-       I'm connecting you with a specialist who can assist you further and
-       ensure everything is handled properly. Please hold on for a moment.
+User: This is unacceptable, I'm going to file a formal complaint and consider legal action
+Agent: I hear you, and I'm sorry this has been such a frustrating experience.
+       I want to make sure this gets the right attention — I'm escalating this to
+       our specialist support team right now, and they'll reach out to you directly.
 ```
-
-### 4. General Inquiry
-
-```
-User: What are my options if my flight gets cancelled?
-Agent: If your flight is cancelled by the airline, you have three main options:
-       1. Full refund to your original form of payment (processed in 5-10
-          business days)
-       2. Rebooking on the next available flight at no additional cost
-       3. Rebooking on a later date that suits your schedule
-       Additionally, if you're flying in the EU, you may be entitled to
-       compensation of €250–€600 depending on the distance. Would you like
-       help with any of these options?
-```
-
----
-
-## Scope Cuts (4-Hour MVP)
-
-| Feature | Status | Reason |
-|---------|--------|--------|
-| Redis session store | Cut | Postgres handles state for this MVP |
-| RAG / pgvector for policies | Cut | Policies injected directly into LLM context (only 5 rules) |
-| Authentication / multi-tenancy | Cut | Admin view is demo-only, unauthenticated |
-| Monorepo / workspaces | Cut | Single Next.js app, folder structure for separation |
-| Real airline API integration | Cut | Actions are mock-executed; production would call real APIs |
-| Multi-turn slot filling | Partial | Slots extracted per turn; missing slots prompt follow-up but no persistent slot accumulation across turns |
-| Conversation history in DB | Cut | Current turn only; full history would require message persistence |
 
 ---
 
@@ -637,7 +694,6 @@ Agent: If your flight is cancelled by the airline, you have three main options:
 | `npm run test:watch` | Run Vitest in watch mode |
 | `npm run test:graph` | Run test conversation through agent graph |
 | `npm run postinstall` | Generate Prisma client (runs automatically on `npm install`) |
-| `npm run db:migrate` | Run Prisma migrations |
-| `npm run db:seed` | Seed database with test data |
-| `npm run db:reset` | Drop all tables, re-migrate, re-seed |
-| `npm run db:studio` | Open Prisma Studio (browser DB viewer) |
+| `npx prisma db push --force-reset` | Reset database to schema |
+| `npx prisma db seed` | Seed database with assignment data |
+| `npx prisma db studio` | Open Prisma Studio (browser DB viewer) |
