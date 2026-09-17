@@ -11,7 +11,7 @@ function getModel() {
 
 /**
  * Generate the final natural-language response to the customer.
- * Handles four modes: info gathering, escalation, confirmation, resolution, and feedback.
+ * Handles five modes: info gathering, escalation, confirmation, resolution, and general.
  */
 export async function generateResponse(state: AgentStateType): Promise<Partial<AgentStateType>> {
   const model = getModel().withStructuredOutput(ResponseSchema);
@@ -31,6 +31,8 @@ export async function generateResponse(state: AgentStateType): Promise<Partial<A
       amount: "the refund amount if you know it",
       newFlightNumber: "the flight number you'd like to change to",
       feedback: "any feedback or suggestions about your experience",
+      question: "your question",
+      topic: "what you need help with",
     };
 
     const missingDescriptions = state.missingSlots
@@ -48,29 +50,48 @@ export async function generateResponse(state: AgentStateType): Promise<Partial<A
     }
 
     systemPrompt = `You are an airline customer service agent. The customer has a ${state.intent || "general"} issue.
-I need some information before I can help resolve this.
+
+I need some information before I can help you.
 
 ${missingText}
 
-Be warm and professional. Briefly explain why you need this information if it helps the customer understand.
-Do NOT resolve the issue yet — just ask for the missing information.
+Be warm and professional. Do NOT resolve the issue yet — just ask for the missing information.
 
-IMPORTANT: You have NO access to any customer database, booking system, or account information.
-You do NOT know who this customer is. You must ALWAYS ask for their name and PNR before helping them.`;
+RULES:
+- You have NO access to any customer database, booking system, or account information.
+- You do NOT know who this customer is. You must ALWAYS ask for their name and PNR.
+- Never say the customer is "signed in" or that you have their information. You have NONE.
+- Never answer flight status questions without first getting their PNR and name.
+- Do NOT provide any resolution or information until you have their name and PNR.`;
   } else if (state.shouldEscalate) {
     // ESCALATION MODE
     systemPrompt = `You are an airline customer service agent. The situation requires escalation to a human agent.
 Reason: ${state.escalationReason}
 Inform the customer that you're connecting them to a specialist who can help further. Be empathetic and professional.`;
   } else if (state.authorityResult === "require_confirmation") {
-    // CONFIRMATION MODE
-    systemPrompt = `You are an airline customer service agent. You have a proposed action that needs customer confirmation.
+    // CONFIRMATION MODE — action needs customer approval before executing
+    systemPrompt = `You are an airline customer service agent. I have identified what can be done for the customer.
+
 Action: ${state.proposedAction?.type}
 Details: ${JSON.stringify(state.proposedAction?.parameters)}
 Rationale: ${state.proposedAction?.rationale}
-Ask the customer to confirm they want to proceed.`;
+
+Present this proposed action to the customer clearly and ask: "Would you like me to proceed with this? Please confirm with YES or NO."
+
+Do NOT execute anything yet. Wait for their confirmation.`;
+  } else if (state.authorityResult === "allow" && state.proposedAction) {
+    // PRE-EXECUTION CONFIRMATION — agent is allowed but should still confirm
+    systemPrompt = `You are an airline customer service agent. Based on the customer's booking and our policies, I can take the following action:
+
+Action: ${state.proposedAction.type}
+Details: ${JSON.stringify(state.proposedAction.parameters)}
+Rationale: ${state.proposedAction.rationale}
+
+Present this to the customer clearly and ask: "Would you like me to proceed? Please confirm with YES or NO."
+
+Do NOT execute anything yet. Wait for their explicit confirmation.`;
   } else if (state.proposedAction) {
-    // RESOLUTION MODE — action completed, now also ask for feedback
+    // RESOLUTION MODE — action completed
     systemPrompt = `You are an airline customer service agent. You have completed an action for the customer.
 Action: ${state.proposedAction.type}
 Result: The action has been processed successfully.
@@ -83,9 +104,11 @@ Be warm and professional.`;
     systemPrompt = `You are an airline customer service agent. Respond helpfully to the customer's inquiry.
 Be professional, empathetic, and concise.
 
-IMPORTANT: You have NO access to any customer database, booking system, or account information.
-You do NOT know who this customer is. You must ALWAYS ask for their name and PNR before helping them.
-Never say the customer is "signed in" or that you have their information. You have NONE.`;
+RULES:
+- You have NO access to any customer database, booking system, or account information.
+- You do NOT know who this customer is. You must ALWAYS ask for their name and PNR before helping them.
+- Never say the customer is "signed in" or that you have their information. You have NONE.
+- Never answer flight-related questions without first getting their PNR and name.`;
   }
 
   const result = await model.invoke([
