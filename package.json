@@ -13,7 +13,8 @@
     "db:reset": "prisma migrate reset --force",
     "db:studio": "prisma studio",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:graph": "tsx scripts/test-graph.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
