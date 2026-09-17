@@ -33,9 +33,10 @@ export async function POST(req: Request) {
 
   const convId = conversationId ?? `conv-${Date.now()}`;
 
-  // Always anonymous — the agent has NO data about the customer.
-  // Customer identity is only resolved AFTER the agent collects PNR + name.
-  const custId = "anonymous";
+  // Use first real customer for the DB foreign key (required by schema).
+  // The agent itself never sees this — it stays stateless.
+  const fallback = await prisma.customer.findFirst();
+  const custId = fallback?.id ?? "anonymous";
 
   // Ensure conversation exists
   await prisma.conversation.upsert({
