@@ -33,7 +33,19 @@ export async function POST(req: Request) {
   const { messages: rawMessages, conversationId, customerId } = body;
 
   const convId = conversationId ?? `conv-${Date.now()}`;
-  const custId = customerId ?? "anonymous";
+
+  // Resolve customer: use provided ID if valid, else fall back to first available
+  let custId = customerId ?? "anonymous";
+  if (custId !== "anonymous") {
+    const exists = await prisma.customer.findUnique({ where: { id: custId } });
+    if (!exists) {
+      const fallback = await prisma.customer.findFirst();
+      custId = fallback?.id ?? "anonymous";
+    }
+  } else {
+    const fallback = await prisma.customer.findFirst();
+    if (fallback) custId = fallback.id;
+  }
 
   // Ensure conversation exists
   await prisma.conversation.upsert({

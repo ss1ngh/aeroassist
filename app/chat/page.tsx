@@ -14,7 +14,7 @@ interface ChatMessage {
 
 export default function ChatPage() {
   const [conversationId] = useState(generateId);
-  const [customerId] = useState("cmu5lu3jt0000hqxwiklsfz6n");
+  const [customerId] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
