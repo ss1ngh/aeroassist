@@ -17,6 +17,7 @@ export const CancellationSlotsSchema = z.object({
 export const DelaySlotsSchema = z.object({
   customerName: z.string().describe("Customer's full name"),
   pnr: z.string().describe("Booking reference / PNR"),
+  reason: z.string().describe("What the customer needs help with (e.g., rebooking, compensation, hotel, meal voucher)"),
   flightNumber: z.string().optional().describe("Flight number if known"),
   origin: z.string().optional().describe("Departure airport (IATA code)"),
   destination: z.string().optional().describe("Arrival airport (IATA code)"),

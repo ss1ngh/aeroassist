@@ -48,6 +48,7 @@ describe("Intent Slot Schemas", () => {
       const result = DelaySlotsSchema.safeParse({
         customerName: "Bob Martinez",
         pnr: "DEF456",
+        reason: "flight delayed, need help with compensation",
         flightNumber: "UA300",
         currentDelayMinutes: 120,
       });
@@ -57,6 +58,7 @@ describe("Intent Slot Schemas", () => {
     it("requires customerName", () => {
       const result = DelaySlotsSchema.safeParse({
         pnr: "DEF456",
+        reason: "need help",
       });
       expect(result.success).toBe(false);
     });
@@ -64,6 +66,15 @@ describe("Intent Slot Schemas", () => {
     it("requires pnr", () => {
       const result = DelaySlotsSchema.safeParse({
         customerName: "Bob",
+        reason: "need help",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("requires reason", () => {
+      const result = DelaySlotsSchema.safeParse({
+        customerName: "Bob",
+        pnr: "DEF456",
       });
       expect(result.success).toBe(false);
     });

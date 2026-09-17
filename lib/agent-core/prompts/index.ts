@@ -114,10 +114,10 @@ Propose exactly one action.`;
 const SLOT_DESCRIPTIONS: Record<string, string> = {
   customerName: "your full name",
   pnr: "your booking reference (PNR number)",
+  reason: "what you need help with (for example: rebooking, compensation, meal voucher, hotel)",
   flightNumber: "your flight number",
   origin: "the departure airport",
   destination: "the arrival airport",
-  reason: "the reason for your request",
   refundType: "the type of refund you prefer (full, partial, or taxes only)",
   amount: "the refund amount if you know it",
   newFlightNumber: "the flight number you'd like to change to",
