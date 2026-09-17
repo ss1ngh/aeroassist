@@ -11,6 +11,7 @@ describe("Intent Slot Schemas", () => {
   describe("CancellationSlotsSchema", () => {
     it("accepts valid cancellation data", () => {
       const result = CancellationSlotsSchema.safeParse({
+        customerName: "Alice Johnson",
         pnr: "ABC123",
         flightNumber: "AA100",
         reason: "airline_fault",
@@ -18,8 +19,16 @@ describe("Intent Slot Schemas", () => {
       expect(result.success).toBe(true);
     });
 
+    it("requires customerName", () => {
+      const result = CancellationSlotsSchema.safeParse({
+        pnr: "ABC123",
+      });
+      expect(result.success).toBe(false);
+    });
+
     it("requires pnr", () => {
       const result = CancellationSlotsSchema.safeParse({
+        customerName: "Alice",
         flightNumber: "AA100",
       });
       expect(result.success).toBe(false);
@@ -27,6 +36,7 @@ describe("Intent Slot Schemas", () => {
 
     it("accepts data without optional fields", () => {
       const result = CancellationSlotsSchema.safeParse({
+        customerName: "Alice",
         pnr: "ABC123",
       });
       expect(result.success).toBe(true);
@@ -36,6 +46,7 @@ describe("Intent Slot Schemas", () => {
   describe("DelaySlotsSchema", () => {
     it("accepts valid delay data", () => {
       const result = DelaySlotsSchema.safeParse({
+        customerName: "Bob Martinez",
         pnr: "DEF456",
         flightNumber: "UA300",
         currentDelayMinutes: 120,
@@ -43,8 +54,17 @@ describe("Intent Slot Schemas", () => {
       expect(result.success).toBe(true);
     });
 
+    it("requires customerName", () => {
+      const result = DelaySlotsSchema.safeParse({
+        pnr: "DEF456",
+      });
+      expect(result.success).toBe(false);
+    });
+
     it("requires pnr", () => {
-      const result = DelaySlotsSchema.safeParse({});
+      const result = DelaySlotsSchema.safeParse({
+        customerName: "Bob",
+      });
       expect(result.success).toBe(false);
     });
   });
@@ -52,24 +72,54 @@ describe("Intent Slot Schemas", () => {
   describe("RefundSlotsSchema", () => {
     it("accepts valid refund data", () => {
       const result = RefundSlotsSchema.safeParse({
+        customerName: "Charlie Kim",
         pnr: "GHI789",
+        reason: "Flight was cancelled by airline",
         refundType: "full",
         amount: 250,
       });
       expect(result.success).toBe(true);
     });
 
-    it("requires pnr", () => {
+    it("requires customerName", () => {
       const result = RefundSlotsSchema.safeParse({
-        refundType: "partial",
+        pnr: "GHI789",
+        reason: "cancelled",
       });
       expect(result.success).toBe(false);
+    });
+
+    it("requires pnr", () => {
+      const result = RefundSlotsSchema.safeParse({
+        customerName: "Charlie",
+        reason: "cancelled",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("requires reason", () => {
+      const result = RefundSlotsSchema.safeParse({
+        customerName: "Charlie",
+        pnr: "GHI789",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("accepts data with feedback", () => {
+      const result = RefundSlotsSchema.safeParse({
+        customerName: "Charlie",
+        pnr: "GHI789",
+        reason: "cancelled",
+        feedback: "The check-in process was confusing",
+      });
+      expect(result.success).toBe(true);
     });
   });
 
   describe("FareDifferenceSlotsSchema", () => {
     it("accepts valid fare difference data", () => {
       const result = FareDifferenceSlotsSchema.safeParse({
+        customerName: "Alice Johnson",
         pnr: "JKL012",
         newFlightNumber: "DL500",
         fareDifference: 150,
@@ -77,8 +127,16 @@ describe("Intent Slot Schemas", () => {
       expect(result.success).toBe(true);
     });
 
+    it("requires customerName", () => {
+      const result = FareDifferenceSlotsSchema.safeParse({
+        pnr: "JKL012",
+      });
+      expect(result.success).toBe(false);
+    });
+
     it("requires pnr", () => {
       const result = FareDifferenceSlotsSchema.safeParse({
+        customerName: "Alice",
         fareDifference: 100,
       });
       expect(result.success).toBe(false);
@@ -90,6 +148,14 @@ describe("Intent Slot Schemas", () => {
       const result = GeneralInquirySlotsSchema.safeParse({
         question: "What is my booking status?",
         topic: "booking_status",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("accepts data with customerName", () => {
+      const result = GeneralInquirySlotsSchema.safeParse({
+        customerName: "Alice",
+        question: "What is my booking status?",
       });
       expect(result.success).toBe(true);
     });

@@ -8,6 +8,14 @@ import { executeAction } from "./nodes/execute-action";
 import { generateResponse } from "./nodes/generate-response";
 
 /**
+ * Route after extractSlots: if required slots are missing, ask for them first.
+ */
+function routeAfterExtractSlots(state: AgentStateType): string {
+  if (state.missingSlots.length > 0) return "gatherInfo";
+  return "proposeAction";
+}
+
+/**
  * Route after check-authority: decide whether to execute, confirm, or escalate.
  */
 function routeAfterAuthority(state: AgentStateType): string {
@@ -21,10 +29,12 @@ function routeAfterAuthority(state: AgentStateType): string {
  * Build the airline disruption support agent graph.
  *
  * Flow:
- *   START -> classifyIntent -> extractSlots -> proposeAction -> checkAuthority
- *     -> (allow) -> executeAction -> generateResponse -> END
- *     -> (require_confirmation) -> generateResponse -> END
- *     -> (escalate) -> generateResponse -> END
+ *   START -> classifyIntent -> extractSlots
+ *     -> (missing slots) -> generateResponse (ask for info) -> END
+ *     -> (all slots filled) -> proposeAction -> checkAuthority
+ *       -> (allow) -> executeAction -> generateResponse -> END
+ *       -> (require_confirmation) -> generateResponse -> END
+ *       -> (escalate) -> generateResponse -> END
  */
 function buildGraph() {
   const graph = new StateGraph(AgentState)
@@ -36,7 +46,10 @@ function buildGraph() {
     .addNode("generateResponse", generateResponse)
     .addEdge(START, "classifyIntent")
     .addEdge("classifyIntent", "extractSlots")
-    .addEdge("extractSlots", "proposeAction")
+    .addConditionalEdges("extractSlots", routeAfterExtractSlots, {
+      gatherInfo: "generateResponse",
+      proposeAction: "proposeAction",
+    })
     .addEdge("proposeAction", "checkAuthority")
     .addConditionalEdges("checkAuthority", routeAfterAuthority, {
       execute: "executeAction",
@@ -54,7 +67,7 @@ let _agentGraph: ReturnType<typeof buildGraph> | null = null;
 
 /**
  * Get the compiled agent graph. Creates it on first call.
- * Ensure process.env.MODEL_NAME and ANTHROPIC_API_KEY are set before invoking.
+ * Ensure process.env.MODEL_NAME and GROQ_API_KEY are set before invoking.
  */
 export function getAgentGraph() {
   if (!_agentGraph) {
