@@ -51,9 +51,10 @@ export const FareDifferenceSlotsSchema = z.object({
   fareDifference: z.number().optional().describe("Fare difference amount"),
 });
 
-/** Slot schema for general inquiry. */
+/** Slot schema for general inquiry — still requires name and PNR to look up booking. */
 export const GeneralInquirySlotsSchema = z.object({
-  customerName: z.string().optional().describe("Customer's full name if provided"),
+  customerName: z.string().describe("Customer's full name"),
+  pnr: z.string().describe("Booking reference / PNR"),
   topic: z.string().optional().describe("General topic of inquiry"),
   question: z.string().describe("The customer's question"),
 });

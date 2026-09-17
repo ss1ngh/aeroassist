@@ -146,15 +146,18 @@ describe("Intent Slot Schemas", () => {
   describe("GeneralInquirySlotsSchema", () => {
     it("accepts valid inquiry data", () => {
       const result = GeneralInquirySlotsSchema.safeParse({
+        customerName: "Priya Nair",
+        pnr: "SK4821X",
         question: "What is my booking status?",
         topic: "booking_status",
       });
       expect(result.success).toBe(true);
     });
 
-    it("accepts data with customerName", () => {
+    it("accepts data without optional topic", () => {
       const result = GeneralInquirySlotsSchema.safeParse({
         customerName: "Alice",
+        pnr: "ABC123",
         question: "What is my booking status?",
       });
       expect(result.success).toBe(true);
@@ -162,7 +165,25 @@ describe("Intent Slot Schemas", () => {
 
     it("requires question", () => {
       const result = GeneralInquirySlotsSchema.safeParse({
+        customerName: "Alice",
+        pnr: "ABC123",
         topic: "status",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("requires customerName", () => {
+      const result = GeneralInquirySlotsSchema.safeParse({
+        pnr: "ABC123",
+        question: "Is my flight delayed?",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("requires pnr", () => {
+      const result = GeneralInquirySlotsSchema.safeParse({
+        customerName: "Alice",
+        question: "Is my flight delayed?",
       });
       expect(result.success).toBe(false);
     });
