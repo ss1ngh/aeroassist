@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Customer {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  loyaltyTier String   @default("silver") // silver | gold | platinum
+  createdAt   DateTime @default(now())
+  bookings    Booking[]
+  conversations Conversation[]
+}
+
+model Booking {
+  id                 String   @id @default(cuid())
+  customerId         String
+  pnr                String   @unique
+  flightNumber       String
+  origin             String
+  destination        String
+  scheduledDeparture DateTime
+  status             String   @default("on_time") // on_time | delayed | cancelled | rebooked
+  fareClass          String   @default("economy") // economy | premium_economy | business | first
+  createdAt          DateTime @default(now())
+  customer           Customer @relation(fields: [customerId], references: [id])
+}
+
+model Conversation {
+  id         String   @id @default(cuid())
+  customerId String
+  status     String   @default("active") // active | resolved | escalated
+  createdAt  DateTime @default(now())
+  events     Event[]
+  customer   Customer @relation(fields: [customerId], references: [id])
+}
+
+model Event {
+  id             String     @id @default(cuid())
+  conversationId String
+  type           String // message | slot_extracted | action_proposed | action_executed | escalated
+  payload        Json
+  actor          String // user | agent | system
+  createdAt      DateTime   @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id])
+}

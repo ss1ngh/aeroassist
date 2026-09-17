@@ -1,0 +1,16 @@
+version: "3.9"
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: aeroassist
+      POSTGRES_PASSWORD: aeroassist
+      POSTGRES_DB: aeroassist
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
