@@ -11,7 +11,6 @@ async function main() {
   await prisma.booking.deleteMany();
   await prisma.customer.deleteMany();
 
-  // Create 3 customers from the assignment
   const priya = await prisma.customer.create({
     data: {
       name: "Priya Nair",
@@ -38,7 +37,7 @@ async function main() {
 
   console.log(`Created customers: ${priya.id}, ${arvind.id}, ${meher.id}`);
 
-  // Create bookings from the assignment
+  // Create bookings
   const bookings = await Promise.all([
     // Priya Nair - Cancelled flight (Delhi → Goa) Wed 23 Sep 2026
     prisma.booking.create({
@@ -57,7 +56,7 @@ async function main() {
     prisma.booking.create({
       data: {
         customerId: priya.id,
-        pnr: "SK4821X",
+        pnr: "SK4821R",
         flightNumber: "SK-204R",
         origin: "GOI",
         destination: "DEL",
